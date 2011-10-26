@@ -1,21 +1,75 @@
-#working directories
-top_dir=$(pwd)
-targets_dir="$top_dir/targets"
-patches_dir="$top_dir/patches-generic"
-compress_js_dir="$top_dir/compressed_javascript"
+#!/bin/bash
 
-#script for building netfilter patches
-netfilter_patch_script="$top_dir/netfilter-match-modules/integrate_netfilter_modules_backfire.sh"
+set_constant_variables()
+{
+	#working directories
+	top_dir=$(pwd)
+	targets_dir="$top_dir/targets"
+	patches_dir="$top_dir/patches-generic"
+	compress_js_dir="$top_dir/compressed_javascript"
 
-#openwrt branch
-branch_name="backfire"
+	#script for building netfilter patches
+	netfilter_patch_script="$top_dir/netfilter-match-modules/integrate_netfilter_modules_backfire.sh"
 
-# set svn revision number to use 
-# you can set this to an alternate revision 
-# or empty to checkout latest 
-rnum=28536
+	#openwrt branch
+	branch_name="backfire"
+
+	# set svn revision number to use 
+	# you can set this to an alternate revision 
+	# or empty to checkout latest 
+	rnum=28536
+
+}
 
 
+create_gargoyle_banner()
+{
+	local target="$1"
+	local profile="$2"
+	local date="$3"
+	local gargoyle_version="$4"
+	local gargoyle_commit="$5"
+	local openwrt_branch="$6"
+	local openwrt_revision="$7"
+	local banner_file_path="$8"
+
+	local openwrt_branch_str="OpenWrt $openwrt_branch branch"
+	if [ "$openwrt_branch" = "trunk" ] ; then
+		openwrt_branch_str="OpenWrt trunk"
+	fi
+
+	local top_line=$(printf "| %-26s| %-32s|" "Gargoyle version $gargoyle_version" "$openwrt_branch_str")
+	local middle_line=$(printf "| %-26s| %-32s|" "Gargoyle revision $gargoyle_commit" "OpenWrt revision r$openwrt_revision")
+	local bottom_line=$(printf "| %-26s| %-32s|" "Built $date" "Target  $target/$profile")
+
+	cat << 'EOF' >"$banner_file_path"
+---------------------------------------------------------------
+|          _____                             _                |
+|         |  __ \                           | |               |
+|         | |  \/ __ _ _ __ __ _  ___  _   _| | ___           |
+|         | | __ / _` | '__/ _` |/ _ \| | | | |/ _ \          |
+|         | |_\ \ (_| | | | (_| | (_) | |_| | |  __/          |
+|          \____/\__,_|_|  \__, |\___/ \__, |_|\___|          |
+|                           __/ |       __/ |                 |
+|                          |___/       |___/                  |
+|                                                             |
+|-------------------------------------------------------------|
+EOF
+	echo "$top_line"    >> "$banner_file_path"
+	echo "$middle_line" >> "$banner_file_path"
+	echo "$bottom_line" >> "$banner_file_path"
+	echo '---------------------------------------------------------------' >> "$banner_file_path"
+
+
+}
+
+#create_gargoyle_banner "ar71xx" "ath9k_only" "Oct 25, 2011" "1.4.3" "a56732" "backfire" "26932" "banner_tmp.txt"
+#cat banner_tmp.txt
+#exit;
+
+
+#initialize constants
+set_constant_variables
 
 
 #parse parameters
@@ -206,6 +260,8 @@ for target in $targets ; do
 		else
 			sh $netfilter_patch_script . ../netfilter-match-modules 1 1 >/dev/null 2>&1
 		fi
+
+
 		make -j 4 GARGOYLE_VERSION="$adj_num_version"
 	else
 		scripts/patch-kernel.sh . "$patches_dir/" 
