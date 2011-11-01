@@ -102,7 +102,7 @@ EOF
 	echo '---------------------------------------------------------------' >> "$banner_file_path"
 
 	#save openwrt variables for rebuild
-	echo "$openwrt_version" > "$revision_save_dir/OPENWRT_REVISION"
+	echo "$openwrt_revision" > "$revision_save_dir/OPENWRT_REVISION"
 	echo "$openwrt_branch"  > "$revision_save_dir/OPENWRT_BRANCH"
 
 }
@@ -163,6 +163,7 @@ fi
 if [ ! -d "downloaded" ] ; then
 	mkdir "downloaded"
 fi
+
 openwrt_src_dir="$top_dir/downloaded/$branch_name-$rnum"
 
 #download openwrt source if we haven't already
@@ -372,7 +373,7 @@ for target in $targets ; do
 		exit
 	fi
 
-	other_profiles = ""
+	other_profiles=""
 	if [ "$target" != "custom" ] ; then
 		other_profiles=$(ls $targets_dir/$target/profiles | grep -v "^$default_profile$" )
 	fi
