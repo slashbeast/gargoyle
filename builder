@@ -15,6 +15,8 @@ if ! awk '/^GNU Make [0-9.]+$/ && $3 > 3.81 { exit 1 }' < <(make --version); the
 	exit 1
 fi
 
+cores_num="$(grep -c '^processor' /proc/cpuinfo)"
+
 config_option() {
 	# $1 name
 	# $2 value
@@ -262,7 +264,7 @@ for profile in "${target_profiles[@]}"; do
 	fi
 
 	if [ "${verbose}" = 'true' ]; then kernel_verbose='V=99'; fi
-	make ${kernel_verbose} -j4 GARGOYLE_VERSION="${version_name}"
+	make ${kernel_verbose} -j${cores_num:-1} GARGOYLE_VERSION="${version_name}"
 
 	if [ ! -d "${workdir}/output/${target}/${profile}" ]; then mkdir -p "${workdir}/output/${target}/${profile}"; fi
 
