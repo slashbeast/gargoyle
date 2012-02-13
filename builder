@@ -231,6 +231,24 @@ for profile in "${target_profiles[@]}"; do
 		config_option 'CONFIG_PACKAGE_ntfs-3g' --check "${build_dir}/.config" && config_option 'CONFIG_PACKAGE_libgcrypt' 'y' "${build_dir}/.config"
 	fi
 
+	# UglifyJS, try to minify javascript.
+	if which uglifyjs 2> /dev/null; then
+		uglifyjs_test="$(echo 'var abc = 1;' | uglifyjs  2>/dev/null)"
+		# See if the uglifyjs_test output looks like minified js.
+		if [ "${uglifyjs_test}" = 'var abc=1;' ] || [ "${uglifyjs_test}" = 'var abc=1' ]; then
+			einfo 'Minifing javascript files by UglifyJS ...'
+			# UglifyJS works.
+			(
+				cd "${build_dir}/package/gargoyle/files/www/js" && \
+				for js in *.js; do
+					einfo "Minifing '${js}' ... "
+					uglifyjs "${js}" > "${js}.minified" && \
+					mv "${js}.minified" "${js}"
+				done
+			)
+		fi
+	fi
+
 	if [ "${verbose}" = 'true' ]; then kernel_verbose='V=99'; fi
 	make ${kernel_verbose} -j4 GARGOYLE_VERSION="${version_name}"
 
