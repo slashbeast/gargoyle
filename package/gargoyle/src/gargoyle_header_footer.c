@@ -168,14 +168,21 @@ int main(int argc, char **argv)
 			return 0;
 		}
 
-		char* theme_root = "themes";
+		char* theme_root = "/themes";
 		char* theme = "default";
 		char* js_root = "js";
 		char* web_root = "/www";
 		char* bin_root = ".";
+		char* gargoyle_version = "default";
 		if(get_uci_option(ctx, &e, p, "gargoyle", "global", "theme_root") == UCI_OK)
 		{
 			theme_root=get_option_value_string(uci_to_option(e));
+			if(theme_root[0] != "/")
+			{
+				char* tmp = theme_root;
+				theme_root = dynamic_strcat(2, "/", theme_root);
+				free(tmp);
+			}
 		}
 		if(get_uci_option(ctx, &e, p, "gargoyle", "global", "theme") == UCI_OK)
 		{
@@ -184,6 +191,13 @@ int main(int argc, char **argv)
 		if(get_uci_option(ctx, &e, p, "gargoyle", "global", "js_root") == UCI_OK)
 		{
 			js_root=get_option_value_string(uci_to_option(e));
+			if(js_root[0] != "/")
+			{
+				char* tmp = js_root;
+				js_root = dynamic_strcat(2, "/", js_root);
+				free(tmp);
+			}
+
 		}
 		if(get_uci_option(ctx, &e, p, "gargoyle", "global", "web_root") == UCI_OK)
 		{
@@ -193,6 +207,29 @@ int main(int argc, char **argv)
 		{
 			bin_root=get_option_value_string(uci_to_option(e));
 		}
+		if(get_uci_option(ctx, &e, p, "gargoyle", "global", "version") == UCI_OK)
+		{
+			char* raw_version = get_option_value_string(uci_to_option(e));
+
+			/* adjust version to ensure it is valid query string */
+			int ri;
+			gargoyle_version = strdup(raw_version); /* just for allocating memory */
+			for(ri = 0; raw_version[ri] != '\0'; ri++)
+			{
+				unsigned char ch= raw_version[ri];
+				if( (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '.' || ch == '-' || ch == '_' || ch == '~' ) /* valid query string characters */
+				{
+					gargoyle_version[ri] = (char)ch;
+				}
+				else
+				{
+					gargoyle_version[ri] = '-';
+				}
+			}
+			gargoyle_version[ri] = '\0';
+			free(raw_version);
+		}
+
 
 		char** all_css;
 		char** all_js;
@@ -256,11 +293,11 @@ int main(int argc, char **argv)
 		int css_index, js_index;
 		for(css_index=0; all_css[css_index] != NULL; css_index++)
 		{
-			printf("\t<link rel=\"stylesheet\" href=\"/%s/%s/%s\" type=\"text/css\" />\n", theme_root, theme, all_css[css_index]);
+			printf("\t<link rel=\"stylesheet\" href=\"%s/%s/%s?%s\" type=\"text/css\" />\n", theme_root, theme, all_css[css_index], gargoyle_version);
 		}
 		for(js_index=0; all_js[js_index] != NULL; js_index++)
 		{
-			printf("\t<script language=\"javascript\" type=\"text/javascript\" src=\"/%s/%s\"></script>\n", js_root, all_js[js_index]);
+			printf("\t<script language=\"javascript\" type=\"text/javascript\" src=\"%s/%s?%s\"></script>\n", js_root, all_js[js_index], gargoyle_version);
 		}
 		printf("</head>\n");
 		printf("<body>\n");
@@ -273,7 +310,7 @@ int main(int argc, char **argv)
 			printf("\t\t\tPlease Wait While Settings Are Applied\n");
 			printf("\t\t</div>\n");
 			printf("\t\t<div id=\"wait_icon\">\n");
-			printf("\t\t\t<img src=\"/%s/%s/images/wait_icon.gif\" />\n", theme_root, theme);
+			printf("\t\t\t<img src=\"%s/%s/images/wait_icon.gif\" />\n", theme_root, theme);
 			printf("\t\t</div>\n");
 			printf("\t\t<iframe id=\"m_iframe\" class=\"select_free\"></iframe>\n");
 			printf("\t</div>\n");
@@ -440,7 +477,18 @@ int main(int argc, char **argv)
 						}
 						else
 						{
-							printf("\t\t\t\t\t\t\t\t<a href=\"/%s/%s\">%s</a>\n", bin_root, page_script, page_display);
+							char* bin_slash = bin_root[0] == '/' ? strdup("") : strdup("/");
+							char* page_slash = page_script[0] == '/' ? strdup("") : strdup("/");
+							if(strcmp(bin_root, ".") == 0)
+							{
+  								printf("\t\t\t\t\t\t\t\t<a href=\"%s%s\">%s</a>\n", page_slash, page_script, page_display);
+							}
+  							else
+							{
+  								printf("\t\t\t\t\t\t\t\t<a href=\"%s%s%s%s\">%s</a>\n", bin_slash, bin_root, page_slash, page_script, page_display);
+							}
+							free(bin_slash);
+							free(page_slash);
 						}
 						free(lookup);
 					}
@@ -480,7 +528,22 @@ int main(int argc, char **argv)
 						next_section_script = get_option_value_string(uci_to_option(e));
 					}
 				}
-				printf("\t\t\t\t\t\t<a href=\"/%s/%s\">%s</a>\n", bin_root, next_section_script, section_display);
+
+
+				char* bin_slash = bin_root[0] == '/' ? strdup("") : strdup("/");
+				char* script_slash = next_section_script[0] == '/' ? strdup("") : strdup("/");
+				if(strcmp(bin_root, ".") == 0)
+				{
+					printf("\t\t\t\t\t\t<a href=\"%s%s\">%s</a>\n", script_slash, next_section_script, section_display);
+				}
+  				else
+				{
+					printf("\t\t\t\t\t\t<a href=\"%s%s%s%s\">%s</a>\n", bin_slash, bin_root, script_slash, next_section_script, section_display);
+				}
+				free(bin_slash);
+				free(script_slash);
+
+
 				printf("\t\t\t\t\t</div>\n");
 				prev_section_selected=0;
 			}
@@ -537,7 +600,32 @@ void define_package_vars(char** package_vars_to_load)
 					struct uci_element *e2;
 					uci_foreach_element(&section->options, e2) 	
 					{
-						printf("\tuciOriginal.set('%s', '%s', '%s', \"%s\");\n",package_vars_to_load[package_index], section->e.name, e2->name, get_option_value_string(uci_to_option(e2)));
+						struct uci_option* uopt = uci_to_option(e2);
+						if(uopt->type == UCI_TYPE_STRING)
+						{
+							printf("\tuciOriginal.set('%s', '%s', '%s', \"%s\");\n", package_vars_to_load[package_index], section->e.name, e2->name, get_option_value_string(uopt));
+						}
+						else if(uopt->type == UCI_TYPE_LIST)
+						{
+							printf("\tuciOriginal.createListOption('%s', '%s', '%s', true);\n", package_vars_to_load[package_index], section->e.name, e2->name);
+							struct uci_element* e;
+							uci_foreach_element(&uopt->v.list, e)
+							{
+								char* list_str = strdup(e->name);
+								char* tmp = list_str;
+								list_str = dynamic_replace(list_str, "\\", "\\\\");
+								free(tmp);
+								tmp = list_str;
+								list_str = dynamic_replace(list_str, "\"", "\\\"");
+								free(tmp);
+
+								/* when last parameter of set is true, value gets appended to list instead of replacing it */
+								printf("\tuciOriginal.set('%s', '%s', '%s', \"%s\", true);\n", package_vars_to_load[package_index], section->e.name, e2->name, list_str);
+									
+								free(list_str);
+							}
+
+						}
 					}
 				
 				}

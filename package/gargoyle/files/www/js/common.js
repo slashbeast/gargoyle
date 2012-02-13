@@ -219,9 +219,33 @@ function UCIContainer()
 {
 	this.keys = new Array();
 	this.values = new Array();
+	this.listOptions = new Array();
 
-	this.set = function(pkg, section, option, value)
+
+	this.createListOption = function(pkg,section,option,destroy_existing_nonlist)
 	{
+		destroy_existing_nonlist = destroy_existing_nonlist == null ? true : false;
+		var  list_key = pkg + "\." + section + "\." + option;
+		if( this.listOptions[ list_key ] != null )
+		{
+			return;
+		}
+
+		this.listOptions[ list_key ] = 1;
+		if( this.values[list_key] != null )
+		{
+			var old = this.values[list_key];
+			this.values[list_key] = (!destroy_existing_nonlist) && old != null ? [old] : [] ; 
+		}
+		else
+		{
+			this.keys.push(list_key);
+			this.values[list_key] = [];
+		}
+	}
+	this.set = function(pkg, section, option, value, preserveExistingListValues)
+	{
+		preserveExistingListValues = preserveExistingListValues == null ? false : preserveExistingListValues;
 		var next_key = pkg + "\." + section;
 	       	if(option != null && option != "" )
 		{
@@ -229,7 +253,31 @@ function UCIContainer()
 		}
 		if(this.values[next_key] != null)
 		{
-			this.values[next_key] = value;
+			if (this.listOptions[ next_key ] != null)
+			{
+				var set = this.values[next_key];
+				while(set.length > 0 && (!preserveExistingListValues))
+				{
+					set.pop();
+				}
+				if( value instanceof Array )
+				{
+					var vi;
+					for(vi=0; vi<value.length; vi++)
+					{
+						set.push( value[vi] );
+					}
+				}
+				else
+				{
+					set.push(value);
+				}
+				this.values[next_key] = set;
+			}
+			else
+			{
+				this.values[next_key] = value;
+			}
 		}
 		else
 		{
@@ -258,14 +306,15 @@ function UCIContainer()
 			this.removeSection(pkg, removeSections[rmIndex]);
 		}
 	}
-	this.getAllOptionsInSection = function(pkg, section)
+	this.getAllOptionsInSection = function(pkg, section, includeLists)
 	{
+		includeLists = includeLists == null ? false : includeLists;
 		var matches = new Array();
 		for (keyIndex in this.keys)
 		{
 			var key = this.keys[keyIndex];
 			var test = pkg + "." + section;
-			if(key.match(test) && key.match(/^[^\.]+\.[^\.]+\.[^\.]+/) )
+			if(key.match(test) && key.match(/^[^\.]+\.[^\.]+\.[^\.]+/) && (includeLists || this.listOptions[key] == null) )
 			{
 				var option = key.match(/^[^\.]+\.[^\.]+\.([^\.]+)$/)[1];
 				matches.push(option);
@@ -312,7 +361,12 @@ function UCIContainer()
 		{
 			removeKey = removeKey + "\." + option;
 		}
-		var value = this.values[removeKey] == null ? '' : this.values[removeKey] ;
+		if( this.listOptions[ removeKey ] != null )
+		{
+			this.listOptions[ removeKey ] = null;
+		}
+
+		var value = this.values[removeKey];
 		if(value != null)
 		{
 			this.values[removeKey] = null;
@@ -323,6 +377,10 @@ function UCIContainer()
 				if(nextKey != removeKey){ newKeys.push(nextKey); }
 			}
 			this.keys = newKeys;
+		}
+		else
+		{
+			value = ''
 		}
 		return value;
 	}
@@ -362,6 +420,11 @@ function UCIContainer()
 		for(keyIndex = 0; keyIndex < this.keys.length; keyIndex++)
 		{
 			var key = this.keys[keyIndex];
+			if( this.listOptions[ key ] != null )
+			{
+				copy.listOptions[ key ] = 1;
+			}
+
 			var splitKey = key.match(/^([^\.]+)\.([^\.]+)\.([^\.]+)$/);
 			if(splitKey == null)
 			{
@@ -375,7 +438,7 @@ function UCIContainer()
 					//should never get here -- if problems put debugging code here
 				}
 			}
-			copy.set(splitKey[1], splitKey[2], splitKey[3], this.values[key]);
+			copy.set(splitKey[1], splitKey[2], splitKey[3], this.values[key], true);
 		}
 		return copy;
 	}
@@ -387,7 +450,14 @@ function UCIContainer()
 		for(keyIndex=0; keyIndex < this.keys.length; keyIndex++)
 		{
 			var key = this.keys[keyIndex]
-			str=str+ "\n" + key + " = \"" + this.values[key] + "\"";
+			if(this.values[key] instanceof Array )
+			{
+				str=str+ "\n" + key + " = \"" + this.values[key].join(",") + "\"";
+			}
+			else
+			{
+				str=str+ "\n" + key + " = \"" + this.values[key] + "\"";
+			}
 		}
 		return str;
 	}
@@ -403,7 +473,12 @@ function UCIContainer()
 			var key = oldSettings.keys[keyIndex];
 			var oldValue = oldSettings.values[key];
 			var newValue = this.values[key];
-			if((newValue == null || newValue == '') && (oldValue != null && oldValue !=''))
+
+			if( (oldValue instanceof Array) || (newValue instanceof Array) )
+			{
+				commandArray.push( "uci del " + key);
+			}
+			else if((newValue == null || newValue == '') && (oldValue != null && oldValue !=''))
 			{
 				commandArray.push( "uci del " + key);
 			}
@@ -414,21 +489,38 @@ function UCIContainer()
 			var key = this.keys[keyIndex];
 			var oldValue = oldSettings.values[key];
 			var newValue = this.values[key];
-			if(oldValue != newValue && (newValue != null && newValue !=''))
+			try
 			{
-				
-					
-				try
+
+				if( (oldValue instanceof Array) || (newValue instanceof Array) )
 				{
+					if(newValue instanceof Array)
+					{
+						var vi;
+						for(vi=0; vi< newValue.length ; vi++)
+						{
+							var nv = "" + newValue[vi] + "";
+							commandArray.push( "uci add_list " + key + "=\'" + nv.replace(/'/, "'\\''") + "\'" );
+						}
+					}
+					else
+					{
+						newValue = "" + newValue + ""
+						commandArray.push( "uci set " + key + "=\'" + newValue.replace(/'/, "'\\''") + "\'" );
+					}
+				}
+				else if(oldValue != newValue && (newValue != null && newValue !=''))
+				{		
 					newValue = "" + newValue + ""
 					commandArray.push( "uci set " + key + "=\'" + newValue.replace(/'/, "'\\''") + "\'" );
 				}
-				catch(e)
-				{
-					alert("bad key = " + key + "\n" + "bad value= " + newValue);
-				}
-					
 			}
+			catch(e)
+			{
+				alert("bad key = " + key + "\n");
+			}
+					
+			
 		}
 
 		commandArray.push("uci commit");
@@ -483,11 +575,23 @@ function setChildText(parentId, text, color, isBold, fontSize, controlDocument)
 			parentElement.style.fontSize = fontSize;
 
 		}
-		if(parentElement.firstChild != null)
+		while(parentElement.firstChild != null)
 		{
 			parentElement.removeChild(parentElement.firstChild);
 		}
-		parentElement.appendChild(controlDocument.createTextNode(text));
+
+		text = text == null ? "" : text;
+		var textParts = text.split("\n");
+		while(textParts.length > 0)
+		{
+			var txt = textParts.shift()
+			parentElement.appendChild(controlDocument.createTextNode(txt));
+			if(textParts.length > 0)
+			{
+				parentElement.appendChild(controlDocument.createElement('br'));
+
+			}
+		}
 	}
 }
 
@@ -2124,4 +2228,102 @@ function arrToHash(arr)
 	for(i=0; i < arr.length; i++) { h[ arr[i] ] = 1; }
 	return h
 }
+
+
+
+
+
+function confirmPassword(confirmText, validatedFunc, invalidFunc)
+{
+	confirmText = confirmText == null ? "Confirm Password:" : confirmText;
+	if( typeof(confirmWindow) != "undefined" )
+	{
+		//opera keeps object around after
+		//window is closed, so we need to deal
+		//with error condition
+		try
+		{
+			confirmWindow.close();
+		}
+		catch(e){}
+	}
+	try
+	{
+		xCoor = window.screenX + 225;
+		yCoor = window.screenY+ 225;
+	}
+	catch(e)
+	{
+		xCoor = window.left + 225;
+		yCoor = window.top + 225;
+	}
+	var wlocation = "password_confirm.sh";
+	confirmWindow = window.open(wlocation, "password", "width=560,height=260,left=" + xCoor + ",top=" + yCoor );
+	
+	var okButton = createInput("button", confirmWindow.document);
+	var cancelButton = createInput("button", confirmWindow.document);
+	
+	okButton.value         = "OK";
+	okButton.className     = "default_button";
+	cancelButton.value     = "Cancel";
+	cancelButton.className = "default_button";
+
+
+	runOnEditorLoaded = function () 
+	{
+		updateDone=false;
+		if(confirmWindow.document != null)
+		{
+			if(confirmWindow.document.getElementById("bottom_button_container") != null)
+			{
+				confirmWindow.document.getElementById("bottom_button_container").appendChild(okButton);
+				confirmWindow.document.getElementById("bottom_button_container").appendChild(cancelButton);
+				setChildText("confirm_text", confirmText, null, null, null, confirmWindow.document);
+			
+				cancelButton.onclick = function()
+				{
+					confirmWindow.close();
+				}
+				okButton.onclick = function()
+				{
+					setControlsEnabled(false, true, "Verifying Password...");
+	
+					var commands = "gargoyle_session_validator -p \"" + confirmWindow.document.getElementById("password").value + "\" -a \"dummy.browser\" -i \"127.0.0.1\""
+					var param = getParameterDefinition("commands", commands) + "&" + getParameterDefinition("hash", document.cookie.replace(/^.*hash=/,"").replace(/[\t ;]+.*$/, ""));
+					var stateChangeFunction = function(req)
+					{
+						if(req.readyState == 4)
+						{
+							confirmWindow.close();
+							var result = req.responseText.split("\n")[0]
+							if(result.match(/^echo \"invalid\"/))
+							{
+								invalidFunc.call(null);
+							}
+							else
+							{
+								validatedFunc.call(null);
+							}
+						}
+					}
+					runAjax("POST", "utility/run_commands.sh", param, stateChangeFunction);
+
+				}
+				confirmWindow.moveTo(xCoor,yCoor);
+				confirmWindow.focus();
+				updateDone = true;
+			}
+		}
+		if(!updateDone)
+		{
+			setTimeout( "runOnEditorLoaded()", 250);
+		}
+	}
+	runOnEditorLoaded();
+}
+
+
+
+
+
 
