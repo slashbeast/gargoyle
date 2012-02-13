@@ -8,6 +8,13 @@ fi
 set -e
 
 einfo() { echo -e "\033[1;32m>>> \033[0m$@" ;}
+
+# Test if make is not too new, there is a lot issues with GNU make 3.82, mixed results.
+if ! awk '/^GNU Make [0-9.]+$/ && $3 > 3.81 { exit 1 }' < <(make --version); then
+	echo "Downgrade GNU Make to 3.81!"
+	exit 1
+fi
+
 config_option() {
 	# $1 name
 	# $2 value
@@ -92,6 +99,11 @@ while [ "$#" -gt 0 ]; do
 		;;
 	esac
 done
+
+if [ -z "${target}" ]; then
+	echo "You must specify target arch!"
+	exit 1
+fi
 
 # debug
 exec 2>"${workdir}/debug.log"
