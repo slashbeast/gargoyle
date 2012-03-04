@@ -231,11 +231,11 @@ for profile in "${target_profiles[@]}"; do
 	fi
 
 	if [ "${use_ccache}" = 'true' ]; then
-		config_option CONFIG_DEVEL y "${build_dir}/.config"
-		config_option CONFIG_CCACHE y "${build_dir}/.config"
+		#config_option CONFIG_DEVEL y "${build_dir}/.config"
+		#config_option CONFIG_CCACHE y "${build_dir}/.config"
 		export PATH="/usr/lib64/ccache/bin:${PATH}"
 		export CCACHE_DIR="${workdir}/tmp/ccache"
-		sed "s#CCACHE_DIR:=\$(STAGING_DIR)/ccache#CCACHE_DIR:=${CCACHE_DIR}#" -i "${build_dir}/include/package.mk"
+		#sed "s#CCACHE_DIR:=\$(STAGING_DIR)/ccache#CCACHE_DIR:=${CCACHE_DIR}#" -i "${build_dir}/include/package.mk"
 	fi
 
 	if [ "${custom}" = 'true' ]; then
