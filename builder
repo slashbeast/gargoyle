@@ -264,7 +264,7 @@ for profile in "${target_profiles[@]}"; do
 	fi
 
 	if [ "${verbose}" = 'true' ]; then kernel_verbose='V=99'; fi
-	make ${kernel_verbose} -j${cores_num:-1} GARGOYLE_VERSION="${version_name}"
+	make ${kernel_verbose} -j${cores_num:-1} GARGOYLE_VERSION="${version_name}" V=99
 
 	if [ ! -d "${workdir}/output/${target}/${profile}" ]; then mkdir -p "${workdir}/output/${target}/${profile}"; fi
 
